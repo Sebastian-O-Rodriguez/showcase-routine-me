@@ -1,0 +1,19 @@
+[
+  { "input": "I ate two eggs and a slice of toast for breakfast", "expectedScenario": "log_nutrition" },
+  { "input": "lunch was a cheeseburger and fries", "expectedScenario": "log_nutrition" },
+  { "input": "did chest and triceps at the gym", "expectedScenario": "log_gym" },
+  { "input": "leg day workout, felt strong", "expectedScenario": "log_gym" },
+  { "input": "ran three miles this morning", "expectedScenario": "log_run" },
+  { "input": "went for a 5k run", "expectedScenario": "log_run" },
+  { "input": "mark my daily water as done", "expectedScenario": "mark_habit" },
+  { "input": "i logged reading today, mark it done", "expectedScenario": "mark_habit" },
+  { "input": "increase my push-up goal by 5", "expectedScenario": "increment_goal" },
+  { "input": "set my weekly run goal to 20 miles", "expectedScenario": "set_goal" },
+  { "input": "add a meditation category", "expectedScenario": "add_category" },
+  { "input": "how did I do this week", "expectedScenario": "query_progress" },
+  { "input": "show my progress from last month", "expectedScenario": "query_progress" },
+  { "input": "I weighed 180 lbs this morning", "expectedScenario": "log_weight" },
+  { "input": "current weight is 82 kg", "expectedScenario": "log_weight" },
+  { "input": "asdkjh qzxjkwblah nonsense gibberish", "expectedScenario": "unknown" },
+  { "input": "???", "expectedScenario": "unknown" }
+]

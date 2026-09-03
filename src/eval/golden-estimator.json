@@ -1,0 +1,40 @@
+[
+  {
+    "items": ["2 eggs", "1 slice of toast"],
+    "unknownAtLeast": 0,
+    "unknownAtMost": 0
+  },
+  {
+    "items": ["cheeseburger"],
+    "unknownAtLeast": 0,
+    "unknownAtMost": 0
+  },
+  {
+    "items": ["grilled chicken breast", "rice"],
+    "unknownAtLeast": 0,
+    "unknownAtMost": 0
+  },
+  {
+    "items": ["some weird alien food xyzzy"],
+    "unknownAtLeast": 1,
+    "unknownAtMost": 1
+  },
+  {
+    "items": ["protein shake"],
+    "unknownAtLeast": 0,
+    "unknownAtMost": 0
+  },
+  {
+    "items": ["breakfast bowl"],
+    "priorFoods": [
+      {
+        "item": "breakfast bowl",
+        "timesLogged": 6,
+        "lastLogged": "2026-08-10",
+        "macros": { "calories": 420, "protein": 24, "fat": 18, "carbs": 40 }
+      }
+    ],
+    "unknownAtLeast": 0,
+    "unknownAtMost": 0
+  }
+]

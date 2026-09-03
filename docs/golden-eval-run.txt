@@ -1,0 +1,160 @@
+
+ RUN  v4.1.11 /Users/sebroot/dev/repos/showcase-routine-me
+
+stdout | tests/golden-eval.test.ts > golden eval: classifier accuracy vs floor > scores the classifier against golden cases and clears the 0.7 floor
+{
+  "step": "classifier",
+  "floor": 0.7,
+  "count": 17,
+  "matched": 17,
+  "accuracy": 1,
+  "failures": []
+}
+
+stdout | tests/golden-eval.test.ts > golden eval: estimator coverage + unknown-bounds vs floors > covers all items and respects known/unknown bounds, clearing floors
+{
+  "step": "estimator",
+  "coverageFloor": 0.8,
+  "unknownBoundsFloor": 0.6,
+  "count": 6,
+  "coverageOk": 6,
+  "unknownInBoundsOk": 6,
+  "coverageRate": 1,
+  "unknownBoundsRate": 1,
+  "report": [
+    {
+      "items": [
+        "2 eggs",
+        "1 slice of toast"
+      ],
+      "unknownAtLeast": 0,
+      "unknownAtMost": 0,
+      "entries": [
+        {
+          "item": "2 eggs",
+          "calories": 140,
+          "protein": 12,
+          "fat": 10,
+          "carbs": 1
+        },
+        {
+          "item": "1 slice of toast",
+          "calories": 80,
+          "protein": 3,
+          "fat": 1,
+          "carbs": 15
+        }
+      ],
+      "allItemsCovered": true,
+      "unknownInBounds": true
+    },
+    {
+      "items": [
+        "cheeseburger"
+      ],
+      "unknownAtLeast": 0,
+      "unknownAtMost": 0,
+      "entries": [
+        {
+          "item": "cheeseburger",
+          "calories": 530,
+          "protein": 25,
+          "fat": 30,
+          "carbs": 40
+        }
+      ],
+      "allItemsCovered": true,
+      "unknownInBounds": true
+    },
+    {
+      "items": [
+        "grilled chicken breast",
+        "rice"
+      ],
+      "unknownAtLeast": 0,
+      "unknownAtMost": 0,
+      "entries": [
+        {
+          "item": "grilled chicken breast",
+          "calories": 280,
+          "protein": 50,
+          "fat": 6,
+          "carbs": 0
+        },
+        {
+          "item": "rice",
+          "calories": 205,
+          "protein": 4,
+          "fat": 0,
+          "carbs": 45
+        }
+      ],
+      "allItemsCovered": true,
+      "unknownInBounds": true
+    },
+    {
+      "items": [
+        "some weird alien food xyzzy"
+      ],
+      "unknownAtLeast": 1,
+      "unknownAtMost": 1,
+      "entries": [
+        {
+          "item": "some weird alien food xyzzy",
+          "calories": 0,
+          "protein": 0,
+          "fat": 0,
+          "carbs": 0,
+          "unknown": true
+        }
+      ],
+      "allItemsCovered": true,
+      "unknownInBounds": true
+    },
+    {
+      "items": [
+        "protein shake"
+      ],
+      "unknownAtLeast": 0,
+      "unknownAtMost": 0,
+      "entries": [
+        {
+          "item": "protein shake",
+          "calories": 120,
+          "protein": 24,
+          "fat": 1,
+          "carbs": 3
+        }
+      ],
+      "allItemsCovered": true,
+      "unknownInBounds": true
+    },
+    {
+      "items": [
+        "breakfast bowl"
+      ],
+      "unknownAtLeast": 0,
+      "unknownAtMost": 0,
+      "entries": [
+        {
+          "item": "breakfast bowl",
+          "calories": 420,
+          "protein": 24,
+          "fat": 18,
+          "carbs": 40
+        }
+      ],
+      "allItemsCovered": true,
+      "unknownInBounds": true
+    }
+  ]
+}
+
+ ✓ tests/golden-eval.test.ts > golden eval: classifier accuracy vs floor > scores the classifier against golden cases and clears the 0.7 floor 2ms
+ ✓ tests/golden-eval.test.ts > golden eval: estimator coverage + unknown-bounds vs floors > covers all items and respects known/unknown bounds, clearing floors 0ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  15:27:37
+   Duration  101ms (transform 14ms, setup 0ms, import 20ms, tests 3ms, environment 0ms)
+
