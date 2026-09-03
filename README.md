@@ -1,8 +1,12 @@
-# RoutineMe — AI Evidence Layer
+# RoutineMe — LLM quality as engineering discipline, not vibes
 
-**Every LLM call is golden-tested, traced, cost-audited, and user-grounded — and unsafe steps fail closed.** This repo is a standalone showcase of the AI-evidence layer behind a habit/nutrition tracker's chat surface: golden evals with regression floors, fire-and-forget observability, user-grounded retrieval, and a bounded agentic loop.
+> A nutrition tracker where the LLM can suggest, but can never silently guess wrong. Every call is golden-tested against regression floors, traced, cost-audited, and grounded in the user's own logs — and when it doesn't know, it says so.
 
-![Hero proof — keyless golden eval output](docs/hero-proof.svg)
+![Hero proof — keyless golden-eval harness (deterministic baseline stands in for the live LLM)](docs/hero-proof.svg)
+
+**The hard problem → what I built → the proof.** Production LLMs drift silently — a model update turns "two eggs" from ~140 cal into a confident hallucination. I built the guardrails that make that regression fail loudly instead: checked-in golden fixtures scored against floors, an honest `unknown` fallback (never fabricate), off-path observability, and a bounded agentic loop. The hero image shows the *harness* running keylessly against a deterministic baseline; the **floors (0.7 accuracy / 0.8 coverage / 0.6 unknown-bounds) are what the live model is held to**, and the alien-food case is pinned to `unknown: true`.
+
+*Signals: AI / ML engineering. Ask me about regression floors vs exact-match assertions, or the "fail closed, never fabricate" contract.*
 
 ---
 
@@ -22,7 +26,7 @@ This showcase isolates the **AI evidence layer** — the discipline around the L
 
 ## Demo
 
-The demo *shows* quality floors rather than asserting them. `npm test` runs the full harness keylessly — no API key, no network, no database:
+The demo *shows* the harness holding a model to quality floors. `npm test` runs it keylessly — no API key, no network, no database — using a **deterministic baseline** in place of the live LLM, so the scores below are a harness sanity check, not a claim about the live model:
 
 ```
 $ npx vitest run tests/golden-eval.test.ts --reporter=verbose
