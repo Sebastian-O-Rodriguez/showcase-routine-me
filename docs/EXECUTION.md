@@ -12,14 +12,15 @@ All commands run from the repo root. No API key, network, or database is require
 ### 1. Install
 
 ```bash
-npm install --legacy-peer-deps
+npm install
 ```
 
-> Note: `--legacy-peer-deps` was required once due to an npm arborist
-> peer-resolution bug (`Cannot read properties of null (reading 'edgesOut')`)
-> on this host. It does not change the installed packages.
+> Note: the very first resolution on this host hit a one-time npm arborist
+> peer-dependency bug (`Cannot read properties of null (reading 'edgesOut')`)
+> and needed `npm install --legacy-peer-deps`. With the committed lock file,
+> plain `npm install` resolves cleanly (verified: `added 47 packages`).
 
-Observed: `added 46 packages in 11s`
+Observed: `added 47 packages in 489ms`
 
 ### 2. Full suite
 
