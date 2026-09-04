@@ -2,7 +2,21 @@
 
 **RoutineMe is a habit and routine tracker designed to make everyday self-tracking easier — from recurring habits to calories and nutrients — without turning logging into another chore.**
 
-Nutrition is where natural language helps most: instead of searching a food database and filling in every field, you describe what you ate and the system structures the log. The AI layer is designed to assist rather than silently take control — retrieval, evaluation, explicit uncertainty, and confirmation boundaries make the natural-language workflow dependable.
+RoutineMe is built around recurring habits, goals, and self-tracking; nutrition is one workflow where natural-language input can remove significant logging friction. Users describe what they ate naturally, review the structured result, and avoid manually searching and entering every field.
+
+**Product screenshot — sanitized demo data:**
+
+![RoutineMe — today view with nutrition, goals, and week tracking](docs/assets/product-today.png)
+
+## What This Showcase Covers
+
+> **About this repository**
+>
+> This is a public showcase of selected engineering from the larger private RoutineMe project. It is intentionally not the full application. The repository focuses on a technically meaningful subsystem that can be demonstrated publicly without exposing private code, data, or infrastructure.
+
+**This public showcase focuses on the AI engineering behind the natural-language logging workflow: interpretation, retrieval, evaluation, uncertainty handling, and bounded actions.**
+
+The interaction it enables, end to end:
 
 ```text
 User:    "Had 2 eggs and a slice of toast for breakfast."
@@ -14,28 +28,13 @@ resolves known foods + prior entries
 structures the nutrition log
               ↓
 user reviews the result
-
-BOT     Found both:
-          2 eggs           ≈ 140 kcal   P 12g · F 10g · C 1g
-          1 slice of toast ≈  80 kcal   P  3g · F  1g · C 15g
-        Log these?                                  ← proposes, waits for confirmation
 ```
 
-## The Product
+And the real thing doing it (live model, demo account):
 
-Tracking habits and routines fails the same way every time: logging becomes a chore, so it stops happening. RoutineMe is built around making the logging moment as light as possible — a habit checked off, a weight entered, a goal nudged, or a meal described in one sentence. It's for people who want the record and the insight without the data-entry tax.
+![RoutineMe — natural-language meal parsed into a structured proposal awaiting confirmation](docs/assets/product-meal-logging.png)
 
-## What This Showcase Covers
-
-> **About this repository**
->
-> This is a public showcase of selected engineering from the larger private RoutineMe project. It is intentionally not the full application. The repository focuses on a technically meaningful subsystem that can be demonstrated publicly without exposing private code, data, or infrastructure.
-
-**Showcase focus: the natural-language logging workflow.** Using nutrition logging as the example, this repository exposes the AI engineering behind the product: interpreting what a user types, grounding it in their own history, handling uncertainty honestly, evaluating that behavior continuously, and keeping every state change behind an explicit confirmation.
-
-## See It Work
-
-The same workflow holds when the system *doesn't* know, and when the user asks it to *change* something:
+When the system *doesn't* know, or the user asks it to *change* something:
 
 ```text
 User:    "Had one serving of zxq mystery powder."
@@ -47,26 +46,6 @@ User:    "Change my daily calorie target to 1,800."
 BOT     Proposed change: daily target → 1,800. Apply?
         Nothing is written until you confirm.       ← bounded action, explicit confirm
 ```
-
-Run the evaluation suite that pins this behavior:
-
-```bash
-npm install
-npm test          # keyless — no API key, no network, no database
-```
-
-```text
-Test Files  6 passed (6) | Tests  40 passed (40)
-
-golden eval: classifier accuracy vs floor
-{ "step": "classifier", "floor": 0.7, "count": 17, "matched": 17, "accuracy": 1 }
-
-golden eval: estimator coverage + unknown-bounds vs floors
-{ "step": "estimator", "coverageFloor": 0.8, "unknownBoundsFloor": 0.6,
-  "coverageRate": 1, "unknownBoundsRate": 1, ... }
-```
-
-What you're seeing (verbatim from the run, captured in `docs/golden-eval-run.txt`): checked-in cases pin the *behavior* — 17 classifier cases, and estimator cases where known foods must be covered and genuinely unknown foods must come back `unknown` with zeroed macros ("some weird alien food xyzzy" → `unknown: true`, never fabricated). Scores are held to floors, so a model or prompt change that degrades behavior fails the suite. The default run uses a deterministic stand-in for the live LLM so the harness runs anywhere with no key; the live model runs the exact same cases and must clear the same floors.
 
 ## How It Works
 
@@ -107,6 +86,28 @@ The eval suite pins behavior with concrete failure classes: an unsupported food 
 
 The assistant can propose; only the user can commit. Mutations flow through schema-validated typed actions that require an explicit confirmation step, and any model-driven follow-up loop is hard-capped at three steps — a confused model can waste a little latency, not take uncontrolled actions on real data.
 
+## Engineering Proof
+
+The evaluation suite run (keyless — no API key, no network, no database):
+
+```bash
+npm install
+npm test
+```
+
+```text
+Test Files  6 passed (6) | Tests  40 passed (40)
+
+golden eval: classifier accuracy vs floor
+{ "step": "classifier", "floor": 0.7, "count": 17, "matched": 17, "accuracy": 1 }
+
+golden eval: estimator coverage + unknown-bounds vs floors
+{ "step": "estimator", "coverageFloor": 0.8, "unknownBoundsFloor": 0.6,
+  "coverageRate": 1, "unknownBoundsRate": 1, ... }
+```
+
+What you're seeing (verbatim from the run, captured in `docs/golden-eval-run.txt`): checked-in cases pin the *behavior* — 17 classifier cases, and estimator cases where known foods must be covered and genuinely unknown foods must come back `unknown` with zeroed macros ("some weird alien food xyzzy" → `unknown: true`, never fabricated). Scores are held to floors, so a model or prompt change that degrades behavior fails the suite. The default run uses a deterministic stand-in for the live LLM so the harness runs anywhere with no key; the live model runs the exact same cases and must clear the same floors.
+
 ## Project Status
 
 | Capability | Status |
@@ -137,6 +138,8 @@ No API key, no network, no database. TypeScript strict, Zod-validated, Vitest.
 | Deterministic model stand-in | **Reconstructed** | Lets the harness run keyless; clearly labeled in code. |
 | LLM client, database, auth, app UI | **Omitted** | Private infrastructure; documented, not shipped. |
 | Credentials, deploy URLs, project refs | **Redacted** | None present. |
+
+Product screenshots above come from the private application running against a local demo environment with synthetic data.
 
 ## About
 
