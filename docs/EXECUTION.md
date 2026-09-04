@@ -75,7 +75,7 @@ The estimator report also confirms the honest-fallback case — `"some weird ali
 food xyzzy"` resolves to `{ "unknown": true }` with zeroed macros, matching the
 golden bounds `unknownAtLeast: 1, unknownAtMost: 1`.
 
-Full verbatim output: `docs/golden-eval-run.txt`. Rendered capture: `docs/hero-proof.svg`.
+Full verbatim output: `docs/golden-eval-run.txt`. The hero interaction in the README mirrors these three cases.
 
 ## Test files
 

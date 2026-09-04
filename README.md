@@ -1,187 +1,113 @@
-# RoutineMe — LLM quality as engineering discipline, not vibes
+# RoutineMe — a nutrition assistant that knows what it doesn't know
 
-> A nutrition tracker where the LLM can suggest, but can never silently guess wrong. Every call is golden-tested against regression floors, traced, cost-audited, and grounded in the user's own logs — and when it doesn't know, it says so.
+RoutineMe is a nutrition tracker you talk to in plain language. It understands food logs, estimates nutrition, and changes your data — with one rule baked in everywhere: **when it isn't sure, it says so instead of inventing an answer, and it never changes anything without asking.**
 
-![Hero proof — keyless golden-eval harness (deterministic baseline stands in for the live LLM)](docs/hero-proof.svg)
+```text
+USER    Had 2 eggs and a slice of toast for breakfast.
 
-**The hard problem → what I built → the proof.** Production LLMs drift silently — a model update turns "two eggs" from ~140 cal into a confident hallucination. I built the guardrails that make that regression fail loudly instead: checked-in golden fixtures scored against floors, an honest `unknown` fallback (never fabricate), off-path observability, and a bounded agentic loop. The hero image shows the *harness* running keylessly against a deterministic baseline; the **floors (0.7 accuracy / 0.8 coverage / 0.6 unknown-bounds) are what the live model is held to**, and the alien-food case is pinned to `unknown: true`.
+BOT     Found both:
+          2 eggs           ≈ 140 kcal   P 12g · F 10g · C 1g
+          1 slice of toast ≈  80 kcal   P  3g · F  1g · C 15g
+        Log these?                                  ← proposes, waits for confirmation
 
-*Signals: AI / ML engineering. Ask me about regression floors vs exact-match assertions, or the "fail closed, never fabricate" contract.*
+USER    Had one serving of zxq mystery powder.
 
----
+BOT     I can't identify "zxq mystery powder" reliably.
+        I can log it as unknown — I won't guess the nutrition.
+                                                    ← honest fallback, nothing invented
 
-## What It Does
+USER    Change my daily calorie target to 1,800.
 
-The product is a habit + nutrition tracker whose natural-language chat is *guarded*, not vibes-checked. When a user types "had two eggs and toast for breakfast", a pipeline classifies intent, retrieves the user's own past logs, estimates macros, proposes a change, asks for confirmation, and only then executes — while every LLM call is recorded off the critical path.
-
-This showcase isolates the **AI evidence layer** — the discipline around the LLM — as pure TypeScript:
-
-| Component | What it proves |
-| --- | --- |
-| **Golden eval harness** | Classifier accuracy + estimator unknown-bounds are scored against checked-in golden fixtures and held to regression floors. |
-| **Honest unknown-fallback** | The estimator tags unrecognized foods `unknown` (zeroed macros) instead of fabricating numbers. |
-| **LLM observability** | Per-call latency / tokens / estimated-cost / fallback, fire-and-forget off the request path. |
-| **User-grounded retrieval** | A ranked recent-log scan (no vector infra) lets the estimator reuse a food the user logged before. |
-| **Bounded agentic loop** | `MAX_AGENTIC_DEPTH = 3` + a Zod union gate; malformed next-steps fail closed. |
-
-## Demo
-
-The demo *shows* the harness holding a model to quality floors. `npm test` runs it keylessly — no API key, no network, no database — using a **deterministic baseline** in place of the live LLM, so the scores below are a harness sanity check, not a claim about the live model:
-
-```
-$ npx vitest run tests/golden-eval.test.ts --reporter=verbose
-
-stdout | golden eval: classifier accuracy vs floor
-{
-  "step": "classifier",
-  "floor": 0.7,
-  "count": 17,
-  "matched": 17,
-  "accuracy": 1,
-  "failures": []
-}
-
-stdout | golden eval: estimator coverage + unknown-bounds vs floors
-{
-  "step": "estimator",
-  "coverageFloor": 0.8,
-  "unknownBoundsFloor": 0.6,
-  "count": 6,
-  "coverageOk": 6,
-  "unknownInBoundsOk": 6,
-  "coverageRate": 1,
-  "unknownBoundsRate": 1,
-  ...
-  ✓ alien food → { "unknown": true }   (honest fallback, never fabricated)
-}
+BOT     Proposed change: daily target → 1,800. Apply?
+        Nothing is written until you confirm.       ← bounded action, explicit confirm
 ```
 
-The deterministic reference baseline stands in for the real model so the *harness* (load → run → score → floor-check) executes end-to-end with no key. The production model runs through the same harness under the original repo's `evals` command; only the model under test differs.
+Three behaviors tell the whole story: **grounded answers → honest uncertainty → no uncontrolled actions.**
 
-## Architecture
+## See It Work
+
+```bash
+npm install
+npm test          # keyless — no API key, no network, no database
+```
+
+```text
+Test Files  6 passed (6) | Tests  40 passed (40)
+
+golden eval: classifier accuracy vs floor
+{ "step": "classifier", "floor": 0.7, "count": 17, "matched": 17, "accuracy": 1 }
+
+golden eval: estimator coverage + unknown-bounds vs floors
+{ "step": "estimator", "coverageFloor": 0.8, "unknownBoundsFloor": 0.6,
+  "coverageRate": 1, "unknownBoundsRate": 1, ... }
+```
+
+What you're seeing (verbatim from the run, captured in `docs/golden-eval-run.txt`): checked-in cases pin the *behavior* — 17 classifier cases, and estimator cases where known foods must be covered and genuinely unknown foods must come back `unknown` with zeroed macros ("some weird alien food xyzzy" → `unknown: true`, never fabricated). Scores are held to floors, so a model or prompt change that degrades behavior fails the suite. The default run uses a deterministic stand-in for the live LLM so the harness runs anywhere with no key; the live model runs the exact same cases and must clear the same floors.
+
+## The Problem
+
+Natural-language nutrition assistants have a dangerous failure mode: when the model is uncertain, it still sounds confident. "1 serving of zxq powder" comes back as *380 kcal, 12g protein* — invented, plausible, and wrong. For a health product, a confidently wrong number is worse than no number. And an assistant that can act (change your targets, log entries) needs a hard line between *suggesting* and *doing*.
+
+## How It Works
 
 ```mermaid
-flowchart TD
-    subgraph Pipeline["Chat pipeline"]
-        A[User message] --> B[classify]
-        B --> C[normalize]
-        C --> D[estimate]
-        D --> E[propose]
-        E --> F[confirm]
-        F --> G[execute]
-    end
+flowchart LR
+    U["User message"] --> C["Classify intent"]
+    C --> N["Resolve foods<br/><i>against the user's own history</i>"]
+    N --> E["Estimate nutrition<br/><i>unknown foods stay unknown</i>"]
+    E --> P["Propose change"]
+    P --> CF["Confirm"]
+    CF --> X["Execute"]
 
-    subgraph Guardrails["Guardrails (this repo)"]
-        EV["Golden eval harness<br/>scoring + fixtures + floors"]
-        OB["LLM observability<br/>fire-and-forget metrics"]
-        RT["User-grounded retrieval<br/>ranked recent-log scan"]
-        AL["Bounded agentic loop<br/>MAX_AGENTIC_DEPTH=3 + Zod gate"]
-    end
-
-    subgraph Omitted["Production-only (documented, not shipped)"]
-        DB["Supabase schema + RLS<br/>user_id = auth.uid()<br/>service-role fails closed"]
-    end
-
-    B -.->|records| OB
-    D -.->|records| OB
-    E -.->|gated by| AL
-    D -.->|grounded by| RT
-    RT -.->|reads| DB
-    G -.->|writes| DB
-    EV -.->|scores B & D| B
-    EV -.->|scores B & D| D
-
-    classDef guard fill:#1e3a2f,stroke:#27c93f,color:#d4d4d4
-    classDef omit fill:#333,stroke:#666,color:#999,stroke-dasharray:4 2
-    class EV,OB,RT,AL guard
-    class DB omit
+    EV["Behavior test cases<br/><i>(evals)</i>"] -.->|score| C
+    EV -.->|score| E
+    OB["Per-call metrics<br/><i>latency · tokens · cost</i>"] -.->|records| C
+    OB -.->|records| E
+    style EV fill:#1e3a2f,stroke:#27c93f
+    style OB fill:#1e3a2f,stroke:#27c93f
 ```
 
-The four guardrails are the point: the pipeline is ordinary; the *evidence* that the pipeline is trustworthy is not. Every guardrail is a pure, unit-tested module in `src/`.
+Every write goes through one typed action executor with a propose → confirm → execute lifecycle. The chat pipeline doesn't have its own private way to mutate data — it proposes, you confirm, then the same executor runs.
 
 ## Engineering Highlights
 
-**1. Golden evals with regression floors + honest unknown-fallback.**
-*Constraint*: LLM behavior drifts silently as models/prompts change, and a nutrition estimator that guesses wrong is worse than one that admits it doesn't know.
-*Implementation*: checked-in `golden-classifier.json` / `golden-estimator.json` fixtures define the expected scenario (and, for the estimator, allowed unknown-count bounds) per input. `computeClassifierStats` / `computeEstimatorStats` score runs against floors (0.7 accuracy, 0.8 coverage, 0.6 unknown-bounds).
-*Tradeoff*: floors are deliberately conservative to catch drift without flaky hard-fails; they raise as the harness stabilizes.
-*Result*: the demo above scores the harness end-to-end keylessly, and the estimator's alien-food case is pinned to `unknown: true`.
+### 1. Grounded in the user's own history, not the model's memory
 
-**2. Fire-and-forget LLM observability off the critical path.**
-*Constraint*: observability must never add latency to, or break, the request path.
-*Implementation*: `recordAiCall` returns `void` and never throws; the persistence boundary is an injected sink (no-op by default). `estimateCostUsd` and `summarizeAiHealth` are pure and unit-tested.
-*Tradeoff*: approximate token pricing is captured for trend visibility, not billing-grade accuracy (disclosed in code).
-*Result*: cost/latency/fallback-rate roll up into a per-step health summary without touching the hot path.
+"Rice" should mean *the rice this user usually eats*. Before estimating, the assistant looks at the user's recent logs, ranks them by frequency and recency, and reuses previously-confirmed values verbatim when a food matches. No vector database, no embedding pipeline — a bounded scan of the user's own history, degrading to empty (never to a guess) when lookup fails.
 
-**3. User-grounded retrieval with no vector infra.**
-*Constraint*: the estimator should reuse what *this* user logged before, but standing up an embedding store is heavy for a first cut.
-*Implementation*: a bounded recent-log scan (300 rows) grouped by normalized item, ranked by frequency then recency, handed to the estimator as `priorFoods`.
-*Tradeoff*: recall is bounded by the scan window and exact-ish matching; the boundary is an interface so an embedding store can replace it later without touching the estimator.
-*Result*: the "breakfast bowl" golden case verifies a repeated food reuses its previously logged macros.
+### 2. Behavior tests, not vibes
 
-**4. Bounded agentic loop with a Zod union gate.**
-*Constraint*: an unbounded "let the model keep acting" loop is a runaway-cost and runaway-action risk.
-*Implementation*: `MAX_AGENTIC_DEPTH = 3` hard-caps follow-ups; the model's next-step is validated against a Zod discriminated union — `{done}` or `{next: ActionPayload}` — and any malformed/unknown output ends the loop.
-*Tradeoff*: a strict schema rejects creative-but-untyped proposals, which is exactly the fail-closed behavior wanted for mutations.
-*Result*: `parseAgenticResponse` is pure and unit-tested; depth-guard returns `null` at the cap.
+The eval suite pins behavior with concrete failure classes: an unsupported food must come back `unknown` (never invented macros), every known food must be covered, and the classifier must route ambiguous input correctly. Scores are checked against conservative floors, so a model or prompt change that degrades behavior fails the suite instead of shipping. These run in CI with no API key — the harness is deterministic even though the behavior it scores is the model's.
 
-**5. Server-derived identity + fail-closed admin.**
-*Constraint*: client-supplied user IDs and admin keys must not be trusted.
-*Implementation*: user identity is server-set on every action; the admin client is no-oped entirely when its secret key is absent.
-*Tradeoff*: the actual Supabase schema/RLS is *omitted* from this public repo (private infra) — its role is documented above and in `docs/architecture.md`.
-*Result*: the observability/trace sinks fail to a no-op (never throw, never write) when unconfigured.
+### 3. Bounded autonomy
 
-## Technical Deep Dive
+The assistant can propose; only the user can commit. Mutations flow through schema-validated typed actions that require an explicit confirmation step, and any model-driven follow-up loop is hard-capped at three steps — a confused model can waste a little latency, not take uncontrolled actions on real data.
 
-### The golden eval harness (`src/eval/`)
+## Technical Deep Dive: observability that never slows the answer
 
-`scoring.ts` is pure and deterministic — it loads fixtures, validates them (`unknownAtLeast ≤ unknownAtMost`, non-empty inputs), and computes stats. It deliberately separates *what the model must return* (fixtures) from *how we measure it* (scoring) from *what the model actually is* (injected under test). That separation is what lets the harness run in CI with no LLM key: `tests/evals-harness.test.ts` verifies fixture validity + scoring math with synthetic runs, while `tests/golden-eval.test.ts` runs the end-to-end loop with a deterministic baseline.
-
-### The estimator's unknown contract (`src/chat-estimator.ts`)
-
-`estimateNutrition` has a single failure path: any network/parse/schema error returns `allUnknown(items)` — every item tagged `unknown` with zeroed macros. It *never* invents numbers. `buildEstimatorUserContent` injects prior foods and an explicit "reuse verbatim" instruction; `formatNutritionProposal` prefixes estimates with `~` and asks for confirmation.
-
-### The observability boundary (`src/llm-observability.ts`, `src/trace.ts`)
-
-Both expose an injectable sink with a no-op default. The contract — "fire-and-forget, never throw" — is preserved even though the persistence target (a Supabase table) is out of scope here. `summarizeAiHealth` and `estimateCostUsd` are the pure, tested core.
-
-## Tech Stack
-
-- **TypeScript** (strict) — the entire evidence layer is typed.
-- **Zod** — schema-validated classifier/estimator/action outputs.
-- **Vitest** — the deterministic, keyless test suite.
-- *(Production only, not in this repo: Expo, Supabase/Postgres, OpenRouter — see disclosure.)*
+Every model call records latency, token usage, and estimated cost — but recording never sits on the critical path. The metrics sink is fire-and-forget by contract: it can never throw, never block, and degrades to a no-op when unconfigured. Pure functions roll the per-call records up into a health summary per pipeline step (fallback rate, average latency, spend), which is what makes the floors in the eval suite actionable — you can see a behavior change and the cost change together.
 
 ## Run It
 
 ```bash
-npm install        # one-time
-npm test           # npx vitest run — keyless, no network, no DB
+npm install
+npm test
 ```
 
-Expect `Test Files 6 passed (6) | Tests 40 passed (40)` and the golden-eval stdout above.
-
-## Design Decisions / Tradeoffs
-
-- **Deterministic baseline as the model-under-test stand-in.** The real model needs an API key; the harness must not. A keyword/table baseline (`src/eval/reference-model.ts`) exercises load → run → score → floor-check with no key, clearly labeled as reconstructed.
-- **Floors over exact-match assertions.** Floors (0.7 / 0.8 / 0.6) tolerate a small number of misses so drift is caught without flaky hard-fails on a single re-roll.
-- **Inject the boundary, keep the core pure.** Supabase, the LLM client, and trace persistence are all interfaces with no-op/default or injected implementations, so every piece of *logic* is unit-testable in isolation.
-- **Omit private infra, keep its contract.** The production schema/RLS is a mermaid node + a paragraph, not shipped code — truthful about what exists without leaking it.
+No API key, no network, no database. TypeScript strict, Zod-validated, Vitest.
 
 ## Public Showcase Scope
 
 | Component | Status | Notes |
-| --- | --- | --- |
-| Golden eval scoring (`scoring.ts`) | **Real** | Copied verbatim, de-identified. |
-| Golden fixtures (`.json`) | **Real** | Copied verbatim. |
-| Classifier/estimator/action schemas, prompts | **Real** | Copied, product name neutralized. |
-| Retrieval ranking, observability math, trace | **Real** | Copied; storage boundary abstracted. |
-| `reference-model.ts` (baseline) | **Reconstructed** | Deterministic stand-in so evals run keyless. |
-| LLM client, Supabase client | **Omitted** | Require API keys / private infra. |
-| Supabase schema + RLS | **Omitted** | Documented in mermaid + architecture, not shipped. |
-| Expo app, UI, server routes, migrations | **Omitted** | Out of scope for the evidence layer. |
-| Credentials, secrets, deploy URLs, project refs | **Redacted** | None present; secret-scan clean. |
+|---|---|---|
+| Eval scoring, golden fixtures | **Real** | Copied verbatim, de-identified. |
+| Retrieval ranking, observability, agentic loop, estimator contract | **Real** | Copied; storage boundaries abstracted behind interfaces. |
+| Deterministic model stand-in | **Reconstructed** | Lets the harness run keyless; clearly labeled in code. |
+| LLM client, database, auth, app UI | **Omitted** | Private infrastructure; documented, not shipped. |
+| Credentials, deploy URLs, project refs | **Redacted** | None present. |
+
+Extracted from a private, deployed habit-and-nutrition app.
 
 ## About
 
-Extracted from a private multi-user habit/nutrition tracker as a portfolio showcase of LLM-quality discipline: regression floors, honest-fallback, observability, grounding, and bounded autonomy — not vibes. The pipeline is ordinary; the evidence it's trustworthy is the engineering.
+Built by Sebastian O. Rodriguez. The hard part was not making the model work — it was designing the system so the model being wrong is a visible, bounded event instead of a silent wrong number.
