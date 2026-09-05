@@ -1,38 +1,54 @@
 # RoutineMe — everyday self-tracking without the chore
 
-**RoutineMe is a habit and routine tracker designed to make everyday self-tracking easier — from recurring habits to calories and nutrients — without turning logging into another chore.**
+**RoutineMe is a habit and routine tracker designed to make everyday self-tracking easier — from recurring habits and goals to calories and nutrients.**
 
-RoutineMe is built around recurring habits, goals, and self-tracking; nutrition is one workflow where natural-language input can remove significant logging friction. Users describe what they ate naturally, review the structured result, and avoid manually searching and entering every field.
+A major design goal is reducing logging friction. For nutrition, that means letting someone describe a meal naturally instead of searching for every food and manually entering every field.
 
-**Product screenshot — sanitized demo data:**
+<a href="docs/assets/product-today.png">
+  <img src="docs/assets/product-today.png" alt="RoutineMe today view" width="840">
+</a>
 
-![RoutineMe — today view with nutrition, goals, and week tracking](docs/assets/product-today.png)
+*Today view — habits, routines, and nutrition live in the same daily tracking workflow: a calorie gauge, macro totals, goals with progress, and the week at a glance.*
 
-## What This Showcase Covers
+```mermaid
+flowchart TB
+    LIFE["Daily life"] --> Q["What did I do?"]
+    Q --> RM["RoutineMe<br/><i>habits + routines · nutrition · goals + progress</i>"]
+    RM --> H["Structured history"]
+    H --> F["Useful feedback"]
+```
 
-> **About this repository**
->
-> This is a public showcase of selected engineering from the larger private RoutineMe project. It is intentionally not the full application. The repository focuses on a technically meaningful subsystem that can be demonstrated publicly without exposing private code, data, or infrastructure.
+One app answers that question across everything being tracked. Nutrition is the workflow where typing a sentence replaces a form — and where the AI engineering in this repository lives.
 
-**This public showcase focuses on the AI engineering behind the natural-language logging workflow: interpretation, retrieval, evaluation, uncertainty handling, and bounded actions.**
+## What this repository shows
 
-The interaction it enables, end to end:
+This repository is not the full RoutineMe application. It exposes a public-safe slice of the AI engineering behind natural-language logging.
+
+The showcase demonstrates how free-form input is interpreted, grounded against known information, evaluated against expected behavior, and kept behind explicit confirmation before state-changing actions.
+
+**Public showcase focus: the natural-language nutrition workflow.** This is what the engineering makes possible:
 
 ```text
-User:    "Had 2 eggs and a slice of toast for breakfast."
+"Chicken wrap and iced coffee"
               ↓
-RoutineMe interprets the meal
+       interpret meal
               ↓
-resolves known foods + prior entries
+     match known data + prior entries
               ↓
-structures the nutrition log
+      structured proposal
               ↓
-user reviews the result
+        user confirms
+              ↓
+            saved
 ```
 
 And the real thing doing it (live model, demo account):
 
-![RoutineMe — natural-language meal parsed into a structured proposal awaiting confirmation](docs/assets/product-meal-logging.png)
+<a href="docs/assets/product-meal-logging.png">
+  <img src="docs/assets/product-meal-logging.png" alt="Natural-language meal parsed into a structured proposal" width="840">
+</a>
+
+*Natural-language meal logging — RoutineMe turns a free-form description into a structured nutrition proposal before anything is saved.*
 
 When the system *doesn't* know, or the user asks it to *change* something:
 
@@ -47,10 +63,10 @@ BOT     Proposed change: daily target → 1,800. Apply?
         Nothing is written until you confirm.       ← bounded action, explicit confirm
 ```
 
-## How It Works
+## Turning natural language into a safe structured action
 
 ```mermaid
-flowchart LR
+flowchart TB
     U["User message"] --> C["Classify intent"]
     C --> N["Resolve foods<br/><i>against the user's own history</i>"]
     N --> E["Estimate nutrition<br/><i>unknown foods stay unknown</i>"]
@@ -68,7 +84,7 @@ flowchart LR
 
 Every write goes through one typed action executor with a propose → confirm → execute lifecycle. The chat pipeline doesn't have its own private way to mutate data — it proposes, you confirm, then the same executor runs.
 
-## Engineering Highlights
+## Engineering highlights
 
 ### 1. Natural-language meal logging
 
@@ -86,9 +102,11 @@ The eval suite pins behavior with concrete failure classes: an unsupported food 
 
 The assistant can propose; only the user can commit. Mutations flow through schema-validated typed actions that require an explicit confirmation step, and any model-driven follow-up loop is hard-capped at three steps — a confused model can waste a little latency, not take uncontrolled actions on real data.
 
-## Engineering Proof
+## Engineering proof: evaluating AI behavior
 
-The evaluation suite run (keyless — no API key, no network, no database):
+A meal-logging workflow can look correct in a demo and still fail unpredictably on unfamiliar foods, ambiguous inputs, or state-changing requests. RoutineMe uses repeatable evaluation cases to make those failures visible during development.
+
+The suite runs keyless — no API key, no network, no database:
 
 ```bash
 npm install
@@ -108,7 +126,7 @@ golden eval: estimator coverage + unknown-bounds vs floors
 
 What you're seeing (verbatim from the run, captured in `docs/golden-eval-run.txt`): checked-in cases pin the *behavior* — 17 classifier cases, and estimator cases where known foods must be covered and genuinely unknown foods must come back `unknown` with zeroed macros ("some weird alien food xyzzy" → `unknown: true`, never fabricated). Scores are held to floors, so a model or prompt change that degrades behavior fails the suite. The default run uses a deterministic stand-in for the live LLM so the harness runs anywhere with no key; the live model runs the exact same cases and must clear the same floors.
 
-## Project Status
+## Project status
 
 | Capability | Status |
 |---|---|
@@ -120,7 +138,7 @@ What you're seeing (verbatim from the run, captured in `docs/golden-eval-run.txt
 | Agent-assisted logging workflows (bounded follow-up proposals) | Built |
 | Proactive, scheduled routine management | In development |
 
-## Run This Showcase
+## Run this showcase
 
 ```bash
 npm install
@@ -129,7 +147,7 @@ npm test
 
 No API key, no network, no database. TypeScript strict, Zod-validated, Vitest.
 
-## Public Showcase Scope
+## Public showcase scope
 
 | Component | Status | Notes |
 |---|---|---|
