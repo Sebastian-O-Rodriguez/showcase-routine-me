@@ -1,94 +1,87 @@
-# RoutineMe — self-tracking without the chore
+# RoutineMe: Self-Tracking Without the Chore
 
-Tracking habits works best when the tracking itself doesn't become another habit you have to fight.
+<p align="center"><strong>A habit, routine, and nutrition tracker designed to make useful self-tracking require less manual work.</strong></p>
 
-That's the problem RoutineMe exists to solve. Self-tracking is genuinely useful — you can't improve a routine you can't see. But logging is friction, and friction is what kills consistency. Most people abandon the tracker, not the habit.
+Tracking habits is useful only if keeping the record does not become another task to avoid.
 
-I built RoutineMe as a lightweight place to keep the recurring parts of life together — habits, routines, goals, and nutrition — and the product is increasingly focused on one question: how much of the manual input can we remove while keeping the user in control of their own data?
+RoutineMe brings habits, routines, goals, and nutrition into one daily workflow. A major focus is reducing the amount of manual input required to keep that history useful.
 
 <a href="docs/assets/product-today.png">
   <img src="docs/assets/product-today.png" alt="RoutineMe today view with habits, nutrition, and goals" width="840">
 </a>
 
-*Today view — habits, routines, and nutrition live in one daily workflow: a calorie gauge, macro totals, goals with progress, and the week at a glance.*
+*Today view: habits, routines, and nutrition in one daily workflow, with a calorie gauge, macro totals, goals with progress, and the week at a glance.*
 
-```mermaid
-flowchart TB
-    LIFE["Daily life"] --> Q["What did I do?"]
-    Q --> RM["RoutineMe<br/><i>habits · routines · nutrition · goals</i>"]
-    RM --> H["Structured history"]
-    H --> F["Useful feedback"]
-```
+## Contents
 
-One place answers that question across everything being tracked. Nutrition is where the friction is most obvious — and where the interesting engineering lives.
+- [Overview](#overview)
+- [The product](#the-product)
+- [Natural-language logging](#natural-language-logging)
+- [Making AI reliable](#making-ai-reliable)
+- [Where RoutineMe is headed](#where-routineme-is-headed)
+- [About this repository](#about-this-repository)
 
-## Nutrition, as the example that makes the point
+## Overview
 
-Food logging is the clearest case of the problem. Search for every ingredient, fill out every field, get the portion right — most people give up before the entry is complete.
+Self-tracking is genuinely useful. You cannot improve a routine you cannot see. But logging is friction, and friction is what kills consistency. Most people abandon the tracker, not the habit.
 
-The alternative is to just *write what you ate*:
+RoutineMe keeps the recurring parts of life together in one place and asks one question: how much manual input can be removed while the user stays in control of their own data.
 
-> "Two eggs, toast, and coffee."
+## The product
 
-RoutineMe turns that sentence into a structured proposal you can review before anything is saved.
+One place answers "what did I do?" across everything being tracked: habits, routines, goals, and nutrition. Each becomes a structured history that produces useful feedback rather than a dead spreadsheet.
+
+## Natural-language logging
+
+Nutrition makes logging friction obvious. Instead of searching for every ingredient and filling out fields manually, RoutineMe can turn a sentence such as "two eggs, toast, and coffee" into a structured entry for review.
 
 <a href="docs/assets/product-meal-logging.png">
   <img src="docs/assets/product-meal-logging.png" alt="Natural-language meal parsed into a structured proposal" width="840">
 </a>
 
-*Natural-language meal logging — a free-form description becomes a structured nutrition proposal, waiting for confirmation before it's written.*
+*Natural-language meal logging: a free-form description becomes a structured proposal, waiting for confirmation before anything is saved.*
 
-This isn't a chatbot bolted onto a food diary. It's the same logging action the form produces, reached through natural language instead of a dozen fields.
+This is not a chatbot bolted onto a food diary. It is the same logging action the form produces, reached through natural language instead of a dozen fields.
 
-## Turning a sentence into a safe, structured action
-
-Here's what actually has to happen between "two eggs and toast" and a saved log entry:
-
-```mermaid
-flowchart TB
-    U["User message"] --> C["Classify intent"]
-    C --> N["Resolve foods<br/><i>against the user's own history</i>"]
-    N --> E["Estimate nutrition<br/><i>unknown foods stay unknown</i>"]
-    E --> P["Propose the change"]
-    P --> CF["User confirms"]
-    CF --> X["Execute"]
-    EV["Behavior test cases<br/><i>(evals)</i>"] -.->|"score"| C
-    EV -.->|"score"| E
-    OB["Per-call metrics<br/><i>latency · tokens · cost</i>"] -.->|"record"| C
-    OB -.->|"record"| E
-    style EV fill:#1e3a2f,stroke:#27c93f
-    style OB fill:#1e3a2f,stroke:#27c93f
+```text
+Describe meal
+     ↓
+Interpret
+     ↓
+Use known context
+     ↓
+Prepare entry
+     ↓
+Review
+     ↓
+Save
 ```
 
-A few things about that pipeline are worth calling out, because they're where the reliability actually comes from.
+## Making AI reliable
 
-### One typed execution path for every write
+The point of natural-language logging is that the model does something useful. The risk is that useful quietly turns into plausible. Three mechanisms keep the line.
 
-The chat pipeline doesn't have its own private way to mutate data. Every change — whether it came from a tap in the UI or a typed sentence — flows through the same typed `Action` executor, with a `propose → confirm → execute` lifecycle. A natural-language log is not a special kind of write; it's the same write, reached through a different input path. That's what keeps the surface area of "things that can change state" small enough to reason about.
+### Grounding
 
-### Grounding against what you already told it
+Before estimating, the assistant looks at the user's recent logs, ranks them by frequency and recency, and reuses previously-confirmed values when a food matches. "Rice" means the rice this user usually eats, not whatever the model guesses. A bounded scan of the user's own history degrades to nothing when lookup fails. It degrades to nothing, never to a guess.
 
-"Rice" should mean *the rice this user usually eats*, not whatever the model guesses. Before estimating, the assistant looks at the user's recent logs, ranks them by frequency and recency, and reuses previously-confirmed values verbatim when a food matches. There's no vector database or embedding pipeline — a bounded scan of the user's own history, degrading to empty when lookup fails.
+### Controlled actions
 
-That last part matters: it degrades to *nothing*, never to a guess.
+Every write flows through the same typed action executor, whether it came from a tap in the UI or a typed sentence. A natural-language log is not a special kind of write; it is the same write through a different input path, with a propose, confirm, execute lifecycle. An unknown food stays unknown, with zeroed macros rather than invented ones. A state-changing request produces a proposal that says apply, and nothing is written until the user confirms.
 
-## Making AI useful without making it reckless
+### Evaluation
 
-The whole point of natural-language logging is that the model is doing something useful. The risk is that "useful" quietly turns into "plausible." RoutineMe draws the line with a few concrete rules:
+The workflow is evaluated against repeatable cases covering ambiguous meals, unknown foods, retrieval failures, and state-changing requests.
 
-- **An unknown food stays unknown.** "Some weird alien food xyzzy" comes back with `unknown: true` and zeroed macros, not invented ones. The system will log it as unknown rather than guess its nutrition.
-- **A state-changing request never executes itself.** "Change my daily calorie target to 1,800" produces a proposal that says *Apply?* — nothing is written until the user confirms.
-- **A confused model wastes latency, not data.** Any model-driven follow-up loop is hard-capped at three steps. A model can spin on an ambiguity; it can't take unbounded actions on real data.
+The behaviors are pinned across model and prompt changes: the classifier must route ambiguous input correctly, known foods must resolve, unknown foods must stay unknown. A model or prompt change that degrades behavior fails the suite instead of shipping.
 
-The way these rules stay true across model and prompt changes is a repeatable evaluation harness. Checked-in cases pin the *behavior*: the classifier must route ambiguous input correctly, every known food must be covered, genuinely unknown foods must come back unknown. Scores are held to conservative floors, so a model or prompt change that degrades behavior fails the suite instead of shipping. The harness runs keyless — a deterministic stand-in for the live model — so it runs anywhere, and the live model runs the exact same cases against the same floors.
+## Where RoutineMe is headed
 
-## Where it's headed
-
-The larger question behind RoutineMe is what self-tracking looks like when the software does more of the remembering. The direction is toward more of the routine running proactively — the software knowing what you usually track and when, and preparing the entry for you to confirm rather than asking you to build it from scratch each time — while the user stays the one who decides what actually gets recorded.
+The larger question is what self-tracking looks like when the software does more of the remembering. The direction is toward the routine running more proactively: the software knows what you usually track and when, and prepares the entry for you to confirm instead of asking you to build it from scratch each time. The user stays the one who decides what actually gets recorded.
 
 ## About this repository
 
-RoutineMe is a larger private project, deployed and in active use. This public repository contains a public-safe slice of the AI engineering behind natural-language logging — the classification, retrieval, estimation, typed actions, and the evaluation harness that keeps them honest — so the behavior can be inspected and run without exposing the full application, its data, or its infrastructure.
+RoutineMe is a larger private project, deployed and in active use. This public repository contains a public-safe slice of the AI engineering behind natural-language logging: the classification, retrieval, estimation, typed actions, and the evaluation harness that keeps them honest. It runs without exposing the full application, its data, or its infrastructure.
 
 ## Run it locally
 
@@ -97,4 +90,4 @@ npm install
 npm test
 ```
 
-No API key, no network, no database. TypeScript strict, Zod-validated, Vitest.
+No API key, no network, no database.
