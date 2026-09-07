@@ -1,144 +1,96 @@
-# RoutineMe — everyday self-tracking without the chore
+# RoutineMe — self-tracking without the chore
 
-**RoutineMe is a habit and routine tracker designed to make everyday self-tracking easier — from recurring habits and goals to calories and nutrients.**
+Tracking habits works best when the tracking itself doesn't become another habit you have to fight.
 
-A major design goal is reducing logging friction. For nutrition, that means letting someone describe a meal naturally instead of searching for every food and manually entering every field.
+That's the problem RoutineMe exists to solve. Self-tracking is genuinely useful — you can't improve a routine you can't see. But logging is friction, and friction is what kills consistency. Most people abandon the tracker, not the habit.
+
+I built RoutineMe as a lightweight place to keep the recurring parts of life together — habits, routines, goals, and nutrition — and the product is increasingly focused on one question: how much of the manual input can we remove while keeping the user in control of their own data?
 
 <a href="docs/assets/product-today.png">
-  <img src="docs/assets/product-today.png" alt="RoutineMe today view" width="840">
+  <img src="docs/assets/product-today.png" alt="RoutineMe today view with habits, nutrition, and goals" width="840">
 </a>
 
-*Today view — habits, routines, and nutrition live in the same daily tracking workflow: a calorie gauge, macro totals, goals with progress, and the week at a glance.*
+*Today view — habits, routines, and nutrition live in one daily workflow: a calorie gauge, macro totals, goals with progress, and the week at a glance.*
 
 ```mermaid
 flowchart TB
     LIFE["Daily life"] --> Q["What did I do?"]
-    Q --> RM["RoutineMe<br/><i>habits + routines · nutrition · goals + progress</i>"]
+    Q --> RM["RoutineMe<br/><i>habits · routines · nutrition · goals</i>"]
     RM --> H["Structured history"]
     H --> F["Useful feedback"]
 ```
 
-One app answers that question across everything being tracked. Nutrition is the workflow where typing a sentence replaces a form — and where the AI engineering in this repository lives.
+One place answers that question across everything being tracked. Nutrition is where the friction is most obvious — and where the interesting engineering lives.
 
-## What this repository shows
+## Nutrition, as the example that makes the point
 
-This repository is not the full RoutineMe application. It exposes a public-safe slice of the AI engineering behind natural-language logging.
+Food logging is the clearest case of the problem. Search for every ingredient, fill out every field, get the portion right — most people give up before the entry is complete.
 
-The showcase demonstrates how free-form input is interpreted, grounded against known information, evaluated against expected behavior, and kept behind explicit confirmation before state-changing actions.
+The alternative is to just *write what you ate*:
 
-**Public showcase focus: the natural-language nutrition workflow.** This is what the engineering makes possible:
+> "Two eggs, toast, and coffee."
 
-```text
-"Chicken wrap and iced coffee"
-              ↓
-       interpret meal
-              ↓
-     match known data + prior entries
-              ↓
-      structured proposal
-              ↓
-        user confirms
-              ↓
-            saved
-```
-
-And the real thing doing it (live model, demo account):
+RoutineMe turns that sentence into a structured proposal you can review before anything is saved.
 
 <a href="docs/assets/product-meal-logging.png">
   <img src="docs/assets/product-meal-logging.png" alt="Natural-language meal parsed into a structured proposal" width="840">
 </a>
 
-*Natural-language meal logging — RoutineMe turns a free-form description into a structured nutrition proposal before anything is saved.*
+*Natural-language meal logging — a free-form description becomes a structured nutrition proposal, waiting for confirmation before it's written.*
 
-When the system *doesn't* know, or the user asks it to *change* something:
+This isn't a chatbot bolted onto a food diary. It's the same logging action the form produces, reached through natural language instead of a dozen fields.
 
-```text
-User:    "Had one serving of zxq mystery powder."
-BOT     I can't identify "zxq mystery powder" reliably.
-        I can log it as unknown — I won't guess the nutrition.
-                                                    ← honest fallback, nothing invented
+## Turning a sentence into a safe, structured action
 
-User:    "Change my daily calorie target to 1,800."
-BOT     Proposed change: daily target → 1,800. Apply?
-        Nothing is written until you confirm.       ← bounded action, explicit confirm
-```
-
-## Turning natural language into a safe structured action
+Here's what actually has to happen between "two eggs and toast" and a saved log entry:
 
 ```mermaid
 flowchart TB
     U["User message"] --> C["Classify intent"]
     C --> N["Resolve foods<br/><i>against the user's own history</i>"]
     N --> E["Estimate nutrition<br/><i>unknown foods stay unknown</i>"]
-    E --> P["Propose change"]
-    P --> CF["Confirm"]
+    E --> P["Propose the change"]
+    P --> CF["User confirms"]
     CF --> X["Execute"]
-
-    EV["Behavior test cases<br/><i>(evals)</i>"] -.->|score| C
-    EV -.->|score| E
-    OB["Per-call metrics<br/><i>latency · tokens · cost</i>"] -.->|records| C
-    OB -.->|records| E
+    EV["Behavior test cases<br/><i>(evals)</i>"] -.->|"score"| C
+    EV -.->|"score"| E
+    OB["Per-call metrics<br/><i>latency · tokens · cost</i>"] -.->|"record"| C
+    OB -.->|"record"| E
     style EV fill:#1e3a2f,stroke:#27c93f
     style OB fill:#1e3a2f,stroke:#27c93f
 ```
 
-Every write goes through one typed action executor with a propose → confirm → execute lifecycle. The chat pipeline doesn't have its own private way to mutate data — it proposes, you confirm, then the same executor runs.
+A few things about that pipeline are worth calling out, because they're where the reliability actually comes from.
 
-## Engineering highlights
+### One typed execution path for every write
 
-### 1. Natural-language meal logging
+The chat pipeline doesn't have its own private way to mutate data. Every change — whether it came from a tap in the UI or a typed sentence — flows through the same typed `Action` executor, with a `propose → confirm → execute` lifecycle. A natural-language log is not a special kind of write; it's the same write, reached through a different input path. That's what keeps the surface area of "things that can change state" small enough to reason about.
 
-"2 eggs and toast" becomes a structured log without a form. The pipeline classifies the intent, resolves each food, estimates macros, and proposes the log entry — then waits. The user reviews before anything is written.
+### Grounding against what you already told it
 
-### 2. Grounding against known foods and user history
+"Rice" should mean *the rice this user usually eats*, not whatever the model guesses. Before estimating, the assistant looks at the user's recent logs, ranks them by frequency and recency, and reuses previously-confirmed values verbatim when a food matches. There's no vector database or embedding pipeline — a bounded scan of the user's own history, degrading to empty when lookup fails.
 
-"Rice" should mean *the rice this user usually eats*. Before estimating, the assistant looks at the user's recent logs, ranks them by frequency and recency, and reuses previously-confirmed values verbatim when a food matches. No vector database, no embedding pipeline — a bounded scan of the user's own history, degrading to empty (never to a guess) when lookup fails.
+That last part matters: it degrades to *nothing*, never to a guess.
 
-### 3. Evaluation of AI behavior
+## Making AI useful without making it reckless
 
-The eval suite pins behavior with concrete failure classes: an unsupported food must come back `unknown` (never invented macros), every known food must be covered, and the classifier must route ambiguous input correctly. Scores are checked against conservative floors, so a model or prompt change that degrades behavior fails the suite instead of shipping. These run in CI with no API key — the harness is deterministic even though the behavior it scores is the model's.
+The whole point of natural-language logging is that the model is doing something useful. The risk is that "useful" quietly turns into "plausible." RoutineMe draws the line with a few concrete rules:
 
-### 4. Guarded state-changing actions
+- **An unknown food stays unknown.** "Some weird alien food xyzzy" comes back with `unknown: true` and zeroed macros, not invented ones. The system will log it as unknown rather than guess its nutrition.
+- **A state-changing request never executes itself.** "Change my daily calorie target to 1,800" produces a proposal that says *Apply?* — nothing is written until the user confirms.
+- **A confused model wastes latency, not data.** Any model-driven follow-up loop is hard-capped at three steps. A model can spin on an ambiguity; it can't take unbounded actions on real data.
 
-The assistant can propose; only the user can commit. Mutations flow through schema-validated typed actions that require an explicit confirmation step, and any model-driven follow-up loop is hard-capped at three steps — a confused model can waste a little latency, not take uncontrolled actions on real data.
+The way these rules stay true across model and prompt changes is a repeatable evaluation harness. Checked-in cases pin the *behavior*: the classifier must route ambiguous input correctly, every known food must be covered, genuinely unknown foods must come back unknown. Scores are held to conservative floors, so a model or prompt change that degrades behavior fails the suite instead of shipping. The harness runs keyless — a deterministic stand-in for the live model — so it runs anywhere, and the live model runs the exact same cases against the same floors.
 
-## Engineering proof: evaluating AI behavior
+## Where it's headed
 
-A meal-logging workflow can look correct in a demo and still fail unpredictably on unfamiliar foods, ambiguous inputs, or state-changing requests. RoutineMe uses repeatable evaluation cases to make those failures visible during development.
+The larger question behind RoutineMe is what self-tracking looks like when the software does more of the remembering. The direction is toward more of the routine running proactively — the software knowing what you usually track and when, and preparing the entry for you to confirm rather than asking you to build it from scratch each time — while the user stays the one who decides what actually gets recorded.
 
-The suite runs keyless — no API key, no network, no database:
+## About this repository
 
-```bash
-npm install
-npm test
-```
+RoutineMe is a larger private project, deployed and in active use. This public repository contains a public-safe slice of the AI engineering behind natural-language logging — the classification, retrieval, estimation, typed actions, and the evaluation harness that keeps them honest — so the behavior can be inspected and run without exposing the full application, its data, or its infrastructure.
 
-```text
-Test Files  6 passed (6) | Tests  40 passed (40)
-
-golden eval: classifier accuracy vs floor
-{ "step": "classifier", "floor": 0.7, "count": 17, "matched": 17, "accuracy": 1 }
-
-golden eval: estimator coverage + unknown-bounds vs floors
-{ "step": "estimator", "coverageFloor": 0.8, "unknownBoundsFloor": 0.6,
-  "coverageRate": 1, "unknownBoundsRate": 1, ... }
-```
-
-What you're seeing (verbatim from the run, captured in `docs/golden-eval-run.txt`): checked-in cases pin the *behavior* — 17 classifier cases, and estimator cases where known foods must be covered and genuinely unknown foods must come back `unknown` with zeroed macros ("some weird alien food xyzzy" → `unknown: true`, never fabricated). Scores are held to floors, so a model or prompt change that degrades behavior fails the suite. The default run uses a deterministic stand-in for the live LLM so the harness runs anywhere with no key; the live model runs the exact same cases and must clear the same floors.
-
-## Project status
-
-| Capability | Status |
-|---|---|
-| Habit and routine tracking (habits, streaks, numeric goals) | Built |
-| Nutrition tracking (calories, macros) | Built |
-| Natural-language meal interpretation | Built — demonstrated in this showcase |
-| Retrieval from known/user data | Built — demonstrated in this showcase |
-| AI evaluation harness | Built |
-| Agent-assisted logging workflows (bounded follow-up proposals) | Built |
-| Proactive, scheduled routine management | In development |
-
-## Run this showcase
+## Run it locally
 
 ```bash
 npm install
@@ -146,19 +98,3 @@ npm test
 ```
 
 No API key, no network, no database. TypeScript strict, Zod-validated, Vitest.
-
-## Public showcase scope
-
-| Component | Status | Notes |
-|---|---|---|
-| Eval scoring, golden fixtures | **Real** | Copied verbatim, de-identified. |
-| Retrieval ranking, observability, agentic loop, estimator contract | **Real** | Copied; storage boundaries abstracted behind interfaces. |
-| Deterministic model stand-in | **Reconstructed** | Lets the harness run keyless; clearly labeled in code. |
-| LLM client, database, auth, app UI | **Omitted** | Private infrastructure; documented, not shipped. |
-| Credentials, deploy URLs, project refs | **Redacted** | None present. |
-
-Product screenshots above come from the private application running against a local demo environment with synthetic data.
-
-## About
-
-Built by Sebastian O. Rodriguez. The private RoutineMe project is a deployed habit-and-nutrition app; this showcase carries its AI engineering — the part that decides whether natural-language logging can be trusted.
