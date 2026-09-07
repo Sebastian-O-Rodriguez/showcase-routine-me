@@ -1,4 +1,4 @@
-# RoutineMe: Self-Tracking Without the Chore
+# RoutineMe
 
 <p align="center"><strong>A habit, routine, and nutrition tracker designed to make useful self-tracking require less manual work.</strong></p>
 
